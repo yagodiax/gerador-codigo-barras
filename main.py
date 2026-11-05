@@ -4,7 +4,7 @@ import tempfile
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-import fitz
+import pymupdf as fitz
 from PIL import Image, ImageTk
 
 from database import templates, products, create_product, next_label, history
