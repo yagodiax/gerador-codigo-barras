@@ -1,24 +1,20 @@
-# Gerador de Código de Barras
+# Gerenciador de Etiquetas
 
-Aplicativo desktop offline para cadastro de produtos, geração sequencial de códigos de barras Code 128 e impressão de etiquetas em PDF com dimensões físicas em milímetros.
-
-## Estado atual
-
-Estrutura inicial do projeto. O cadastro local e a numeração independente por produto serão implementados em Python + Tkinter + SQLite. A geração de PDF e o empacotamento portátil serão adicionados nas próximas etapas.
-
-## Requisitos de desenvolvimento
-
-- Python 3.11 ou superior
-- Windows 10/11
+Aplicativo desktop Windows para cadastro de produtos, geração de identificadores Code 128 e impressão de etiquetas em PDF.
 
 ## Executar
+Dê dois cliques em `iniciar.bat`. Se Python 3.13 não estiver instalado, o inicializador tenta instalá-lo via WinGet. A primeira execução exige internet para instalar Python/dependências.
 
-```powershell
-python main.py
-```
+## Recursos
+- Cadastro de produtos e numeração sequencial independente.
+- Identificadores exclusivos no formato `PRODUTO-000001`.
+- Banco SQLite local em `%LOCALAPPDATA%\GeradorCodigoBarras\dados.db`.
+- Modelos iniciais de 50x30, 80x40 e 100x50 mm.
+- PDF em tamanho físico para etiqueta térmica ou distribuição básica em folha A4.
+- Seleção de item no histórico para reimpressão sem consumir outro número.
 
-O banco de dados será armazenado em `%LOCALAPPDATA%\\GeradorCodigoBarras\\dados.db`.
+## Impressão
+O PDF abre no leitor padrão do Windows. Escolha a impressora instalada. Para manter as dimensões, use escala 100% / tamanho real e desative “Ajustar à página”. Na impressora térmica, configure o papel com a mesma dimensão da etiqueta.
 
-## Distribuição
-
-A versão final será empacotada para Windows, sem exigir instalação manual de Python ou dependências no computador de destino.
+## Limitações desta versão
+A impressão é feita pelo leitor PDF e depende do driver da impressora. A distribuição A4 está em versão básica. O banco é local por computador; não há sincronização multiusuário. Teste alinhamento e leitura dos códigos antes de uso operacional.
