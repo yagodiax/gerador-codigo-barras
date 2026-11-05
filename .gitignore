@@ -1,12 +1,10 @@
 __pycache__/
 *.py[cod]
 *.db
-*.sqlite
-*.sqlite3
-exports/
+*.sqlite*
+.venv/
+venv/
 build/
 dist/
 *.spec
-.venv/
-venv/
-runtime/
+*.pdf
