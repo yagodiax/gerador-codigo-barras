@@ -1,7 +1,11 @@
 import os
 import shutil
+import tempfile
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+
+import fitz
+from PIL import Image, ImageTk
 
 from database import templates, products, create_product, next_label, history
 from label_pdf import create_label_pdf
@@ -59,7 +63,7 @@ class App(tk.Tk):
         ttk.Label(result, textvariable=self.code_var, font=("Segoe UI", 15, "bold")).pack(anchor="w")
         actions = ttk.Frame(result)
         actions.pack(fill="x", pady=(8, 0))
-        ttk.Button(actions, text="Imprimir", command=self.print_current).pack(side="left")
+        ttk.Button(actions, text="Visualizar / Imprimir", command=self.print_current).pack(side="left")
         ttk.Button(actions, text="Salvar PDF", command=self.save_pdf).pack(side="left", padx=8)
 
         history_frame = ttk.LabelFrame(self, text="Histórico recente", padding=8)
@@ -101,13 +105,12 @@ class App(tk.Tk):
             self.current = next_label(product_id, template["id"])
             self.code_var.set(self.current["barcode"])
             self.refresh()
-            answer = messagebox.askyesno(
+            if messagebox.askyesno(
                 "Código gerado",
-                f"Código: {self.current['barcode']}\n\nDeseja abrir a etiqueta para imprimir agora?",
+                f"Código: {self.current['barcode']}\n\nDeseja visualizar e imprimir a etiqueta agora?",
                 icon="question",
-            )
-            if answer:
-                self.open_pdf_for_print()
+            ):
+                self.open_print_window()
         except Exception as error:
             messagebox.showerror("Erro", str(error))
 
@@ -125,18 +128,131 @@ class App(tk.Tk):
                     self.code_var.set(row["barcode"])
                 return
 
-    def open_pdf_for_print(self):
+    def open_print_window(self):
         if not self.current:
             messagebox.showinfo("Impressão", "Gere ou selecione um código no histórico.")
             return
+
+        mode = "a4" if self.mode_var.get() == "A4" else "termica"
+        pdf_path = None
         try:
-            pdf_path = create_label_pdf(self.current, "a4" if self.mode_var.get() == "A4" else "termica")
-            os.startfile(pdf_path)
+            pdf_path = create_label_pdf(self.current, mode)
+            with fitz.open(pdf_path) as document:
+                page = document[0]
+                pix = page.get_pixmap(matrix=fitz.Matrix(1.25, 1.25), alpha=False)
+                preview = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+
+            window = tk.Toplevel(self)
+            window.title("Pré-visualização e impressão")
+            window.geometry("920x760")
+            window.minsize(700, 560)
+            window.transient(self)
+
+            top = ttk.Frame(window, padding=12)
+            top.pack(fill="x")
+            ttk.Label(top, text=f"Produto: {self.current['product']}   |   Código: {self.current['barcode']}",
+                      font=("Segoe UI", 10, "bold")).pack(anchor="w")
+            ttk.Label(top, text="Confira a etiqueta e selecione a impressora.").pack(anchor="w", pady=(3, 8))
+
+            printer_row = ttk.Frame(top)
+            printer_row.pack(fill="x")
+            ttk.Label(printer_row, text="Impressora:").pack(side="left")
+            printer_var = tk.StringVar()
+            printer_combo = ttk.Combobox(printer_row, textvariable=printer_var, state="readonly", width=55)
+            printer_combo.pack(side="left", padx=8, fill="x", expand=True)
+
+            try:
+                import win32print
+                flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+                printer_names = sorted({item[2] for item in win32print.EnumPrinters(flags)})
+                default_printer = win32print.GetDefaultPrinter()
+            except Exception as error:
+                printer_names = []
+                default_printer = ""
+                messagebox.showerror("Impressoras", f"Não foi possível listar as impressoras do Windows.\n{error}", parent=window)
+
+            printer_combo["values"] = printer_names
+            if default_printer in printer_names:
+                printer_var.set(default_printer)
+            elif printer_names:
+                printer_var.set(printer_names[0])
+
+            preview_area = ttk.Frame(window, padding=(12, 0, 12, 8))
+            preview_area.pack(fill="both", expand=True)
+            preview.thumbnail((820, 570), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(preview)
+            preview_label = ttk.Label(preview_area, image=photo, anchor="center")
+            preview_label.image = photo
+            preview_label.pack(expand=True)
+
+            if mode == "termica":
+                note = "Na impressora térmica, deixe configurado no driver o mesmo tamanho da etiqueta selecionada."
+            else:
+                note = "A folha A4 será enviada como uma página, com várias cópias da etiqueta."
+            ttk.Label(window, text=note, wraplength=850).pack(padx=12, pady=(0, 8))
+
+            buttons = ttk.Frame(window, padding=12)
+            buttons.pack(fill="x")
+
+            def do_print():
+                selected = printer_var.get().strip()
+                if not selected:
+                    messagebox.showwarning("Impressora", "Selecione uma impressora instalada.", parent=window)
+                    return
+                try:
+                    self.send_pdf_to_printer(pdf_path, selected)
+                    messagebox.showinfo("Impressão", f"Trabalho enviado para:\n{selected}", parent=window)
+                    window.destroy()
+                except Exception as error:
+                    messagebox.showerror("Erro de impressão", str(error), parent=window)
+
+            ttk.Button(buttons, text="Cancelar", command=window.destroy).pack(side="right")
+            ttk.Button(buttons, text="Imprimir", command=do_print).pack(side="right", padx=8)
+            if not printer_names:
+                ttk.Label(buttons, text="Nenhuma impressora encontrada.").pack(side="left")
         except Exception as error:
-            messagebox.showerror("Impressão", str(error))
+            messagebox.showerror("Pré-visualização", str(error), parent=self)
+        finally:
+            if pdf_path and os.path.exists(pdf_path):
+                # O arquivo fica disponível enquanto a janela estiver aberta.
+                pass
+
+    @staticmethod
+    def send_pdf_to_printer(pdf_path, printer_name):
+        import win32con
+        import win32ui
+        from PIL import ImageWin
+
+        with fitz.open(pdf_path) as document:
+            page = document[0]
+            pix = page.get_pixmap(matrix=fitz.Matrix(200 / 72, 200 / 72), alpha=False)
+            image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+
+        dc = win32ui.CreateDC()
+        dc.CreatePrinterDC(printer_name)
+        try:
+            printable_width = dc.GetDeviceCaps(win32con.HORZRES)
+            printable_height = dc.GetDeviceCaps(win32con.VERTRES)
+            image.thumbnail((printable_width, printable_height), Image.Resampling.LANCZOS)
+            x = max(0, (printable_width - image.width) // 2)
+            y = max(0, (printable_height - image.height) // 2)
+            dib = ImageWin.Dib(image)
+            dc.StartDoc("Gerenciador de Etiquetas")
+            dc.StartPage()
+            dib.draw(dc.GetHandleOutput(), (x, y, x + image.width, y + image.height))
+            dc.EndPage()
+            dc.EndDoc()
+        except Exception:
+            try:
+                dc.AbortDoc()
+            except Exception:
+                pass
+            raise
+        finally:
+            dc.DeleteDC()
 
     def print_current(self):
-        self.open_pdf_for_print()
+        self.open_print_window()
 
     def save_pdf(self):
         if not self.current:
