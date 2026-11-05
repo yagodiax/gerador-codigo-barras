@@ -27,7 +27,7 @@ jobs:
           pip install pyinstaller
 
       - name: Build executable
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name Gerenciador-de-Etiquetas --collect-all reportlab main.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name Gerenciador-de-Etiquetas --collect-all reportlab --collect-all fitz --collect-all pymupdf --collect-all PIL main.py
 
       - name: Publish latest release
         uses: softprops/action-gh-release@v2
