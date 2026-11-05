@@ -1,0 +1,5 @@
+# Dependências da próxima etapa (PDF e código de barras).
+python-barcode[images]>=0.15
+Pillow>=10.0
+reportlab>=4.0
+pyinstaller>=6.0
