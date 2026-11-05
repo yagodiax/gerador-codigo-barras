@@ -233,7 +233,12 @@ class App(tk.Tk):
         try:
             printable_width = dc.GetDeviceCaps(win32con.HORZRES)
             printable_height = dc.GetDeviceCaps(win32con.VERTRES)
-            image.thumbnail((printable_width, printable_height), Image.Resampling.LANCZOS)
+            fit_scale = min(printable_width / image.width, printable_height / image.height)
+            target_size = (
+                max(1, int(image.width * fit_scale)),
+                max(1, int(image.height * fit_scale)),
+            )
+            image = image.resize(target_size, Image.Resampling.LANCZOS)
             x = max(0, (printable_width - image.width) // 2)
             y = max(0, (printable_height - image.height) // 2)
             dib = ImageWin.Dib(image)
